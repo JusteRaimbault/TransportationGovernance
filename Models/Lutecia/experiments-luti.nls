@@ -1,0 +1,203 @@
+
+;;
+; Specific experiments for the luti part of the model
+;  (including scenarios for transportation lines, synthetic initial networks)
+
+
+
+to experiments-luti:setup-experiment-luti [relocationRate gammaA gammaE betaDC lambdaacc nwspeed scenario finalTime worldSize setupType rnd-seed]
+  
+  ;; DO NOT clear all, using also direct variables
+  ;clear-all
+  
+  show (word "Luti experiments with : relocation-rate = " relocationRate " ; gammaA = " gammaA " ; gammaE = " gammaE " ; betaDC = " betaDC " ; lamddaacc = " lambdaacc " ; nwspeed = " nwspeed " ; scenario = " scenario " ; finalTime = " finalTime " ; seed = " rnd-seed)
+  
+  setup:setup-headless-vars
+  
+  set global:headless? true
+  set global:failed 0
+ 
+  
+  ;;
+  ; fixed params for luti
+  
+  ;set global:setup-type "random"
+  set global:setup-type setupType
+  
+  set global:evolve-network? false
+  set global:evolve-landuse? true
+  
+  set global:stopping-type "time"
+  
+  set global:initial-nw? true
+  
+  ; dirty scenarios selection (difficult to do otherwise : \gamma = f(centers) is eyeball validated..)
+  if scenario = -1 [set global:initial-nw-type "no-network" set global:#-initial-territories 3]
+  if scenario = 0 [set global:initial-nw-type "tree-skeleton" set global:#-initial-territories 3]
+  if scenario = 1 [set global:initial-nw-type "tree-skeleton" set global:#-initial-territories 5]
+  if scenario = 2 [set global:initial-nw-type "full" set global:#-initial-territories 3]
+  if scenario = 3 [set global:initial-nw-type "full" set global:#-initial-territories 5]
+  if scenario = 4 [set global:initial-nw-type "slime-mould" set global:#-initial-territories 3 set global:network-biological-gamma 1.2]
+  if scenario = 5 [set global:initial-nw-type "slime-mould" set global:#-initial-territories 5 set global:network-biological-gamma 1.1]
+  if scenario = 6 [set global:initial-nw-type "slime-mould" set global:#-initial-territories 3 set global:network-biological-gamma 1.8]
+  if scenario = 7 [set global:initial-nw-type "slime-mould" set global:#-initial-territories 5 set global:network-biological-gamma 1.8]
+  
+  ;;
+  ; run parameters
+ ; set global:#-initial-territories 3
+ ; set global:network-biological-gamma 1.2
+  
+  set global:relocation-rate relocationRate
+  set global:gamma-cobb-douglas-a gammaA
+  set global:gamma-cobb-douglas-e gammaE
+  set global:beta-discrete-choices betaDC
+  set global:lambda-accessibility lambdaacc
+  set global:network-speed nwspeed
+  set global:total-time-steps finalTime
+  set global:seed rnd-seed
+  
+  
+  set global:world-size worldSize; 15
+  setup:setup
+  
+end
+
+
+
+
+;;
+; experiment on initial network only
+to experiments-luti:setup-experiment-initial-network [networkType centers bioGamma rnd-seed]
+  
+  clear-all
+  
+  
+  
+  show (word "Init nw experiment with :  nwtype =  " networkType " ; centers = " centers " ; gamma = " bioGamma " ; seed = " rnd-seed)
+  
+  setup:setup-headless-vars
+  
+  set global:headless? false
+  set global:failed 0
+ 
+  set global:setup-type "random"
+  set global:evolve-network? false
+  set global:evolve-landuse? true
+  set global:stopping-type "time"
+  set global:initial-nw? true
+  
+  ;if networkType = 0 [set global:initial-nw-type "tree-skeleton"] if networkType = 1 [set global:initial-nw-type "full"] if networkType = 2 [set global:initial-nw-type "slime-mould"]
+  ;set global:#-initial-territories (floor centers)
+  ;set global:network-biological-gamma bioGamma
+  
+  ; parameters not needed (do not run)
+  ; default needed for some setups however
+  set global:relocation-rate 0.1
+  set global:gamma-cobb-douglas-a 0.8
+  set global:gamma-cobb-douglas-e 0.8
+  set global:beta-discrete-choices 2.0
+  set global:lambda-accessibility 0.05
+  set global:network-speed 5
+  set global:total-time-steps 1
+  set global:seed rnd-seed
+  
+  set global:world-size 20
+  ;set global:world-height 20 set global:world-width 20
+  set-patch-size 30
+  set global:patches-display "patch:actives"
+  display:update-display
+  setup:setup
+  
+  
+  
+end
+
+to experiments-luti:test-initial-network
+  
+  experiments-luti:setup-experiment-initial-network 1 4 2 0
+  ;indicators:compute-network-indicators
+  network:cache-nw-measures
+  show network-indicators:geometrical-NRI
+end
+
+
+
+
+
+;;
+;  luti experiment
+;
+;  Indicators :
+;  - urban form actives/employments
+;  - relative access gain
+;  - relative
+to experiments-luti:run-experiment-luti
+  experiments:run-experiment
+end
+
+
+
+to experiments-luti:test-external
+  
+  let wsize 25
+  
+  let ractives [] repeat wsize [let row [] repeat wsize [set row lput random-float 1 row] set ractives lput row ractives]
+  let remployments [] repeat wsize [let row [] repeat wsize [set row lput random-float 1 row] set remployments lput row remployments]
+  set global:setup:actives ractives
+  set global:setup:employments remployments
+  
+  experiments-luti:setup-experiment-luti 0.1 0.9 0.8 1.8 0.005 5 4 5 wsize "external" 0
+  
+  experiments-luti:run-experiment-luti
+  
+  indicators:compute-indicators
+
+  show length indicators:actives-raster-alltimes
+  ;show length indicators:employments-raster-alltimes
+
+  ;show matrix:cumabsdiff ractives indicators:actives-raster
+  ;show matrix:cumabsdiff remployments indicators:employments-raster
+  ;show sum map sum indicators:distance-matrix
+  ;show matrix:max global:effective-distance-matrix
+  ;show matrix:min global:effective-distance-matrix
+  ;show matrix:mean global:effective-distance-matrix
+  
+  ;test-distances:export-dist-map
+end
+
+
+to experiments-luti:test-experiment-luti
+  
+  tic
+  
+  experiments-luti:setup-experiment-luti 0.1 0.9 0.8 1.8 0.005 5 4 20 15 "random" 0
+  
+  ;experiments-luti:run-experiment-luti
+  
+  ;indicators:compute-indicators
+  
+  toc
+  
+end
+
+to experiments-luti:all-scenarios
+  foreach list:seq 0 5 1 [
+    ? ->
+     experiments-luti:setup-experiment-luti 0.1 0.9 0.8 1.8 0.005 5 ? 20 15 "random" 0
+  
+    show ?
+  
+    experiments-luti:run-experiment-luti
+  
+    indicators:compute-indicators
+  ]
+end
+
+
+
+
+
+
+
+
+

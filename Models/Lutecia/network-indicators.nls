@@ -1,0 +1,147 @@
+
+;;
+; Network indicators
+
+
+
+
+;;
+; Network robustness with NTR ?
+;  -> difficult, needs to deconstruct some links.
+;  computation of a NRI through geometrical repartition of flow (not Wardrop)
+;  travel-time is directly proportionnal to distance, let say the factor is 1 (anyway the NRI is normalised)
+;  first associates flows to each real links in the total network
+;  travels are doubled but again not a problem thanks to the normalisation
+;
+;  RQ : this indicator has an implicit parameter which is the multiplicative factor of a disruption (set to 10 by default) -> so always works as does not disconnect network.
+;   may change qualitatively results ? not for small world with this value
+to-report network-indicators:geometrical-NRI
+
+  ;ask real-links[set real-link-geometrical-flux 0 ]
+  
+  nw:set-context transportation-nodes transportation-links
+  
+  ;ask poles[
+  ;   let start self
+  ;   ask other poles[
+  ;      let chemin nw:weighted-path-to start "d"
+  ;      foreach chemin[
+  ;        ask ? [set real-link-geometrical-flux (real-link-geometrical-flux + 1) ]
+  ;      ]
+  ;   ]
+  ;]
+  ; -> done in network caching, use transportation-link:bw-centrality
+  
+  ;;c is Sum(t*x)
+  let cc sum [ transportation-link:length * transportation-link:bw-centrality] of transportation-links
+  
+  ;;do the same, suppressing each link
+  ask transportation-links [    
+     let dist transportation-link:length
+     
+     ;;supress the link by putting very huge distance?
+     set transportation-link:length transportation-link:length * 10
+     
+     ; recompute betweenness 
+     ask transportation-links [set transportation-link:bw-centrality 0 ]
+     
+     nw:set-context transportation-nodes transportation-links
+   
+     ask transportation-nodes[
+     let start self
+     ask other transportation-nodes[
+        let chemin nw:weighted-path-to start "transportation-link:length"
+        foreach chemin[
+          ? ->
+             ask ? [set transportation-link:bw-centrality (transportation-link:bw-centrality + 1) ]
+          ]
+       ]
+     ]
+    
+     set transportation-link:NRI ((sum [ transportation-link:length * transportation-link:bw-centrality] of transportation-links) - cc)
+     
+     set transportation-link:length dist
+     
+  ]
+  
+  let nn count transportation-nodes
+  report (sum [transportation-link:NRI] of transportation-links)/(nn * (nn - 1))
+  
+  
+end
+
+
+
+
+
+;;
+; nw diameter
+;  Normalized by world diag
+to-report network-indicators:nw-diameter
+  if count transportation-nodes = 0 [report 0]
+  let diag sqrt (world-width ^ 2 + world-height ^ 2)
+  report max map [?1 -> sum map [?2 -> [transportation-link:length] of ?2] ?1] (utils:table:table-values global:shortest-paths) / diag
+end
+
+
+;;
+; mean path length
+;  Normalized by world diagonal
+to-report network-indicators:mean-path-length
+  if count transportation-nodes = 0 [report 0]
+  let diag sqrt (world-width ^ 2 + world-height ^ 2)
+  report (mean map [?1 -> sum map [?2 -> [transportation-link:length] of ?2] ?1] (utils:table:table-values global:shortest-paths)) / diag
+end
+
+;;
+;  bw centrality, normalized by number of paths considered
+to-report network-indicators:mean-bw-centrality
+  let n count transportation-nodes if n = 0 [report 0]
+  report (mean [transportation-link:bw-centrality] of transportation-links) * 2 / (n * (n - 1))
+end
+
+;;
+; hierarchy betwenness centrality
+to-report network-indicators:alpha-bw-centrality
+  report first indicators:rank-size-hierarchy ([transportation-link:bw-centrality] of transportation-links)
+end
+
+;;
+; average closeness centrality
+to-report network-indicators:mean-closeness-centrality
+  let n count transportation-nodes if n = 0 [report 0]
+  report (mean [transportation-node:closeness-centrality] of transportation-nodes) / n
+end
+
+
+;;
+; hierarchy closeness
+to-report network-indicators:alpha-closeness-centrality
+  report first indicators:rank-size-hierarchy ([transportation-node:closeness-centrality] of transportation-nodes)
+end
+
+
+;;
+; mean relative speed, already normalized
+to-report network-indicators:mean-relative-speed
+  if count transportation-nodes = 0 [report 0]
+  report mean utils:table:table-values global:nw-relative-speeds
+end
+
+;;
+; nw length -> not normalized
+to-report network-indicators:total-nw-length
+  if count transportation-nodes = 0 [report 0]
+  report sum [link-length] of transportation-links
+end
+
+
+
+;;
+; nw length normalized by length of complete network between mayors
+;   (indicator of relative cost)
+to-report network-indicators:relative-nw-length
+  if count transportation-nodes = 0 [report 0]
+  let norm sum [sum map [? -> distance ?] (list:to-list other (mayors with [self != global:regional-authority]))] of (mayors with [self != global:regional-authority]) / 2
+  report sum [link-length] of transportation-links / norm
+end
